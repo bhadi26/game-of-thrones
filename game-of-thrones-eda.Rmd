@@ -1,0 +1,102 @@
+---
+title: "A Song of Ice and Fire"
+author: "Rebecca Hadi"
+date: "5/9/2018"
+output: html_document
+---
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+#load packages 
+library(tidyverse) #tidyverse 
+library(magrittr) #other pipes 
+library(ggthemes)
+library(stringr)
+
+```
+
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+#set wd and load data 
+setwd("~/Documents/personal_git_repo/game-of-thrones/")
+got <- read.csv("game-of-thrones/character-deaths.csv")
+```
+
+## Background 
+
+While browsing on Kaggle, I found this dataset (https://www.kaggle.com/mylesoneill/game-of-thrones/data) that had a few files related to battles and characters from the popular (yet sadly unfinished...) book series *A Song of Ice and Fire*, which has been adapted for TV by HBO in the series *Game of Thrones*.   
+
+**Note: Spoilers ahead!**
+
+One of the data sets was on all named characters, their house allegiance, and death year (if applicable).  I thought it would be interesting to see which house had the highest percentage of living characters (of those named). Note that this contains both nobility and non-nobility (think Bran Stark vs. Hodor as an example of the former and latter - both aligned with House Stark).   
+
+The results were interested and are *clearly* based on the books, seeing that the Tyrell's are the most lively house. If you are current on the show, you'll know that things didn't turn out so hot (or perhaps *too hot*) for the Tyrell family.  
+
+
+```{r, out.width = "200px", fig.align= "center", fig.cap = "RIP Tyrell Family", echo = FALSE}
+knitr::include_graphics("/Users/bt0x/Documents/pictures/610_Sept_of_Baelor_Destruction_Promo.png")
+```
+
+
+Check out how the other houses are faring below! 
+
+
+
+```{r, message = FALSE, warning = FALSE, echo = FALSE}
+#Death Ratio 
+got <- filter(got, Allegiances != "None")
+
+#add flag if dead 
+got$death <- ifelse(is.na(got$Death.Year), 0, 1) 
+
+
+#clean up allegiances to remove inconsistenty with "House" vs. not 
+got$Allegiances <- str_trim(str_replace(got$Allegiances, "House "," "))
+
+
+
+#summarize count by allegiances and death 
+death.ratio <-     got %>% 
+                      group_by(Allegiances, death) %>% 
+                      summarise(count = n()) 
+
+#get one record per house 
+total.members <- death.ratio %>% 
+                  group_by(Allegiances) %>% 
+                  summarise(sum(count))
+
+#dead members 
+total.members.combined <-   inner_join(filter(death.ratio, death == 1),total.members, by = "Allegiances")
+
+#rename columns
+colnames(total.members.combined) <- c("allegiances","Death","deaths","total")
+
+#add death ratio
+total.members.combined$death.ratio <- total.members.combined$deaths / total.members.combined$total 
+
+#add living ratio 
+total.members.combined$life.ratio <- (1 - total.members.combined$death.ratio)
+
+
+#which houses are doing the best? 
+ggplot(data = total.members.combined, aes(x = reorder(allegiances,life.ratio), y = life.ratio, fill = life.ratio)) +
+       geom_bar(stat = "identity") +  
+     #  geom_text(data = total.members.combined, aes(label = life.ratio)) + #add label
+       theme_classic() + 
+       coord_flip() +  
+       labs(x = "House Allegiance", y = "Percent of Known Characters Living") + #labels 
+       ggtitle("A Song of Ice and Fire \nPercent of Living Characters by House Allegiance") + 
+       scale_y_continuous(labels = scales::percent) +  #make y axis percent format
+       theme(legend.position="none") +  #Remove Legend  
+       geom_hline(yintercept = .5)
+
+#how big is each house? 
+ggplot(data = total.members.combined, aes(x = reorder(allegiances,life.ratio), y = total, fill = total)) +
+       geom_bar(stat = "identity") +  
+     #  geom_text(data = total.members.combined, aes(label = life.ratio)) + #add label
+       theme_classic() + 
+       coord_flip() +  
+       labs(x = "House Allegiance", y = "Total Members in House") + #labels 
+       ggtitle("A Song of Ice and Fire - Members in House Allegiance") + 
+       theme(legend.position="none")   #Remove Legend  
+
+```
